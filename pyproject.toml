@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "instagram-token-manager"
+version = "0.1.0"
+description = "Instagram token APIs, session reuse and durable concurrent renewal"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = []
+keywords = ["instagram", "meta", "oauth", "token", "authentication"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+
+[project.urls]
+Homepage = "https://github.com/aritrabasu104/instagram-token-manager-python"
+Repository = "https://github.com/aritrabasu104/instagram-token-manager-python"
+Documentation = "https://github.com/aritrabasu104/instagram-token-manager-python/tree/main/docs"
+Issues = "https://github.com/aritrabasu104/instagram-token-manager-python/issues"
+
+[project.scripts]
+instagram-tokens = "instagram_tokens.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["instagram_tokens*"]
+
+[tool.setuptools.package-data]
+instagram_tokens = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
