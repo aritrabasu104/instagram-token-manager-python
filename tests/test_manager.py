@@ -10,6 +10,7 @@ from helpers import LIFETIME, NEW, NOW, OLD, Fixture
 
 from instagram_tokens import (
     GrantRejected,
+    RefreshRequired,
     RenewalState,
     TokenGrant,
     TransientError,
@@ -129,6 +130,33 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(f.manager.ensure(now=NOW).access_token, NEW)
         self.assertEqual(f.manager.ensure(now=NOW).access_token, NEW)
         self.assertEqual(f.calls, 1)
+
+    def test_rejected_current_authorization_is_typed_and_never_dispatched_for_refresh(self):
+        f = self.fixture
+        f.metadata["expires_at"] = (NOW + timedelta(days=50)).isoformat()
+        f.manager.validator = lambda *args, **kwargs: f.health(
+            "regeneration_required", "provider_rejected_token")
+        with self.assertRaises(RefreshRequired) as caught:
+            f.manager.ensure(now=NOW)
+        self.assertEqual(caught.exception.health.recovery_action, "reauthorize")
+        self.assertEqual(f.calls, 0)
+        self.assertEqual(f.vault.items[(f.identity.target.service, f.identity.target.account)], OLD)
+        self.assertFalse(RenewalState(f.identity, f.store).value)
+
+    def test_permission_and_transport_failures_do_not_request_new_authorization(self):
+        f = self.fixture
+        f.metadata["expires_at"] = (NOW + timedelta(days=50)).isoformat()
+        for state, reason, action, error in [
+            ("configuration_error", "publishing_permission_rejected", "repair_configuration", ValidationError),
+            ("transient_failure", "provider_temporarily_unavailable", "retry_validation", TransientError),
+        ]:
+            health = f.health(state, reason)
+            f.manager.validator = lambda *args, **kwargs: health
+            with self.assertRaises(error) as caught:
+                f.manager.ensure(now=NOW)
+            self.assertNotIsInstance(caught.exception, RefreshRequired)
+            self.assertEqual(health.safe_dict()["recovery_action"], action)
+        self.assertEqual(f.calls, 0)
 
     def test_validation_cache_binds_metadata_and_fresh_refusals(self):
         f = self.fixture

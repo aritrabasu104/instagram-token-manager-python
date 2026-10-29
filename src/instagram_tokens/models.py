@@ -40,8 +40,21 @@ class Health:
     def may_regenerate(self):
         return self.state == "regeneration_required"
 
+    @property
+    def recovery_action(self):
+        """Describe the next safe operation without starting authorization."""
+        if self.valid:
+            return "reuse"
+        if self.state == "transient_failure":
+            return "retry_validation"
+        if self.may_regenerate:
+            if self.reason in {"metadata_missing", "metadata_expiry_invalid", "metadata_near_expiry"}:
+                return "api_maintenance"
+            return "reauthorize"
+        return "repair_configuration"
+
     def safe_dict(self):
-        return {**self.__dict__, "secret_exposed": False}
+        return {**self.__dict__, "recovery_action": self.recovery_action, "secret_exposed": False}
 
 
 @dataclass(repr=False)

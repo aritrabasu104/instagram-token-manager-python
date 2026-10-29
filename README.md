@@ -19,7 +19,7 @@ Instagram-login refresh.
 ## Install
 
 ```sh
-python -m pip install "git+https://github.com/aritrabasu104/instagram-token-manager-python.git@v0.1.0"
+python -m pip install "git+https://github.com/aritrabasu104/instagram-token-manager-python.git@v0.1.1"
 ```
 
 For reproducible deployments, replace the tag with a reviewed full commit SHA.
@@ -69,6 +69,12 @@ from instagram_tokens import map_accounts
 sessions = map_accounts(lambda manager: manager.ensure(), managers)
 # Up to 10 independent accounts; one account keeps its own renewal lock.
 ```
+
+`TokenManager.ensure()` never opens a browser. Catch `RefreshRequired` when a
+current credential is missing, expired or provider rejected; the existing login
+owner must restore that authorization. `error.health.safe_dict()` includes a
+credential-free `recovery_action` so callers can distinguish reauthorization,
+API metadata maintenance, temporary validation failures and configuration fixes.
 
 ## Documentation
 

@@ -16,7 +16,7 @@ from .models import Health, Identity, SecretRef, TokenGrant, TokenResult
 from .state import RenewalState
 from .storage import SQLiteStore
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __all__ = [
     "TokenClient",
     "TokenManager",

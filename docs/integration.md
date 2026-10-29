@@ -90,3 +90,16 @@ preserve any in-flight or unknown authorization attempt. The library does not
 open browsers or manufacture consent. Recheck the exact account before adopting
 an externally recovered credential. Security/permission failures do not authorize
 another grant or a new login attempt.
+
+A provider-rejected current credential also raises `RefreshRequired`, even when
+its saved expiry is in the future. The saved date cannot override a fresh
+rejection. Its `health.recovery_action` is `reauthorize`; this is different from
+`api_maintenance` for repairable lifetime metadata. Transient validation uses
+`retry_validation` and account/permission mismatches use `repair_configuration`.
+These labels are diagnostic only and never issue a grant or open a browser.
+
+An application can remain entirely API based while a reusable authorization
+exists. Initial authorization or revocation recovery remains an explicit
+external dependency. A verified system-user credential with no scheduled expiry
+avoids routine expiry renewal, but it can still be revoked. Do not treat a
+publishing credential or an app secret as authority to issue replacement tokens.

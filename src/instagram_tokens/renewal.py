@@ -266,6 +266,8 @@ def renew(
 
 def _ensured(identity, health, token):
     if not health.valid or not token:
+        if health.may_regenerate:
+            raise RefreshRequired(health)
         error = TransientError if health.state == "transient_failure" else ValidationError
         raise error("Instagram credential failed live validation; another grant was not dispatched")
     return TokenResult(
