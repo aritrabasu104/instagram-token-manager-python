@@ -14,9 +14,10 @@ from .locks import DEFAULT_MAX_PARALLEL_REQUESTS, FileLock, map_accounts
 from .manager import TokenManager
 from .models import Health, Identity, SecretRef, TokenGrant, TokenResult
 from .state import RenewalState
+from .renewal import completed_lifetime
 from .storage import SQLiteStore
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __all__ = [
     "TokenClient",
     "TokenManager",
@@ -26,6 +27,7 @@ __all__ = [
     "TokenGrant",
     "TokenResult",
     "RenewalState",
+    "completed_lifetime",
     "SQLiteStore",
     "FileLock",
     "map_accounts",

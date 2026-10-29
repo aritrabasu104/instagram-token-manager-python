@@ -1,5 +1,17 @@
 # Integrating the manager
 
+An unresolved renewal always resumes or waits on its original receipt before
+metadata repair or interactive recovery. In particular, `dispatching` and
+`unknown` do not become `RefreshRequired` when local metadata expires. Returned
+candidates retain their original validation and promotion path.
+
+For a stale expiry file, `completed_lifetime(identity, record, token, now=...)`
+identifies an unexpired completed receipt bound to the exact credential and
+profile. `ensure()` uses this proof to restore the original issuance/expiry
+after fresh remote validation, without another grant. The helper is read-only
+and supplies no provider clearance. A changed credential, expired receipt,
+binding error or current provider refusal retains its normal recovery gate.
+
 `TokenClient` is a stateless HTTP API. `TokenManager` adds durable renewal and
 session reuse using explicit application adapters. Importing either performs no
 network or credential access.

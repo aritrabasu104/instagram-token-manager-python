@@ -14,6 +14,29 @@ from .models import TokenGrant, TokenResult, iso, parse_time, plausible_token
 from .state import credential_epoch, token_binding
 
 
+def completed_lifetime(identity, value, token, *, now):
+    """Return the exact current credential's unexpired committed API lifetime.
+
+    This proves only local receipt custody. Remote identity and permissions
+    still require validation before metadata can be restored.
+    """
+    if (not value or value.get("status") != "complete"
+            or value.get("profile_binding") != identity.binding
+            or not plausible_token(token)
+            or value.get("candidate_token_binding") != token_binding(token)
+            or type(value.get("expires_in")) is not int):
+        return None
+    try:
+        received = parse_time(value["received_at"], label="API received_at")
+        lifetime = timedelta(seconds=value["expires_in"])
+        expiry = received + lifetime
+    except (ConfigurationError, KeyError, OverflowError, TypeError, ValueError):
+        return None
+    if not timedelta(0) < lifetime <= MAX_TOKEN_LIFETIME or not received <= now < expiry:
+        return None
+    return received, expiry
+
+
 def renew(
     identity,
     *,
@@ -57,27 +80,24 @@ def renew(
                 "Instagram API refresh outcome is unknown; another grant was not dispatched"
             )
     else:
+        completed = completed_lifetime(identity, value, target_token, now=now)
         if (
-            value.get("status") == "complete"
-            and target_token
-            and (value.get("candidate_token_binding") == token_binding(target_token))
+            completed is not None
             and (local_health is not None)
             and skip_metadata_gate
         ):
-            receipt_time = parse_time(value["received_at"], label="API received_at")
-            receipt_expiry = receipt_time + timedelta(seconds=value["expires_in"])
-            if receipt_expiry > now:
-                health, token = inspect_token(target_token, use_metadata=False)
-                result = _ensured(identity, health, token)
-                result.expires_at = metadata_writer(
-                    account_type=health.account_type,
-                    now=receipt_time,
-                    expires_at=receipt_expiry,
-                    expires_in=value["expires_in"],
-                    auth_source=value["auth_source"],
-                )
-                _delete_staging(state, bridge)
-                return result
+            receipt_time, receipt_expiry = completed
+            health, token = inspect_token(target_token, use_metadata=False)
+            result = _ensured(identity, health, token)
+            result.expires_at = metadata_writer(
+                account_type=health.account_type,
+                now=receipt_time,
+                expires_at=receipt_expiry,
+                expires_in=value["expires_in"],
+                auth_source=value["auth_source"],
+            )
+            _delete_staging(state, bridge)
+            return result
         if (
             value.get("status") == "complete"
             and target_token

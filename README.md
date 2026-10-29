@@ -19,7 +19,7 @@ Instagram-login refresh.
 ## Install
 
 ```sh
-python -m pip install "git+https://github.com/aritrabasu104/instagram-token-manager-python.git@v0.1.1"
+python -m pip install "git+https://github.com/aritrabasu104/instagram-token-manager-python.git@v0.1.2"
 ```
 
 For reproducible deployments, replace the tag with a reviewed full commit SHA.
@@ -75,6 +75,14 @@ current credential is missing, expired or provider rejected; the existing login
 owner must restore that authorization. `error.health.safe_dict()` includes a
 credential-free `recovery_action` so callers can distinguish reauthorization,
 API metadata maintenance, temporary validation failures and configuration fixes.
+
+An unresolved API renewal takes precedence over local metadata expiry. Its
+original request remains fenced and never becomes a new login request. If
+only the expiry file is stale, a completed API receipt for the exact current
+credential can restore its original unexpired lifetime after fresh account and
+permission validation. It issues no grant and does not extend the recorded
+lifetime. A truly expired receipt or provider-rejected credential still requires
+its supported authorization recovery.
 
 ## Documentation
 

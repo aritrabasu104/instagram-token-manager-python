@@ -18,6 +18,7 @@ from instagram_tokens import (
     map_accounts,
 )
 from instagram_tokens.state import cached_health, invalidate_health, retain_health
+from instagram_tokens.models import parse_time
 
 
 class ManagerTests(unittest.TestCase):
@@ -85,6 +86,71 @@ class ManagerTests(unittest.TestCase):
         result = f.manager.refresh(now=NOW + timedelta(minutes=3), repair_metadata=True)
         self.assertEqual(first.expires_at, result.expires_at)
         self.assertEqual(f.calls, 1)
+
+    def test_expired_metadata_reuses_an_unexpired_completed_receipt(self):
+        f = self.fixture
+        first = f.manager.refresh(now=NOW)
+        f.metadata['expires_at'] = (NOW - timedelta(seconds=1)).isoformat()
+        def metadata_health(moment):
+            expired = parse_time(f.metadata['expires_at']) <= moment
+            return f.metadata, f.health('regeneration_required', 'metadata_expired') if expired else None
+        f.manager.metadata_health = metadata_health
+        repaired = f.manager.ensure(now=NOW + timedelta(minutes=3))
+        self.assertEqual(repaired.expires_at, first.expires_at)
+        self.assertEqual(f.calls, 1)
+        self.assertEqual(f.metadata['captured_at'], NOW.isoformat())
+
+    def test_unknown_refresh_cannot_become_a_new_login_when_metadata_expires(self):
+        f = self.fixture
+        def lost(token):
+            f.calls += 1
+            raise TimeoutError('Original refresh response was lost')
+        f.manager.refresher = lost
+        with self.assertRaises(TransientError):
+            f.manager.refresh(now=NOW)
+        f.manager.metadata_health = lambda moment: (
+            f.metadata, f.health('regeneration_required', 'metadata_expired'))
+        with self.assertRaises(TransientError):
+            f.manager.ensure(now=NOW + timedelta(days=4))
+        self.assertEqual(f.calls, 1)
+        self.assertEqual(RenewalState(f.identity, f.store).value['status'], 'unknown')
+
+    def test_expired_receipt_or_changed_credential_cannot_restore_lifetime(self):
+        f = self.fixture
+        f.manager.refresh(now=NOW)
+        f.manager.metadata_health = lambda moment: (
+            f.metadata, f.health('regeneration_required', 'metadata_expired'))
+        with self.assertRaises(RefreshRequired):
+            f.manager.ensure(now=NOW + timedelta(days=61))
+        f.vault.items[(f.identity.target.service, f.identity.target.account)] = OLD
+        with self.assertRaises(RefreshRequired):
+            f.manager.ensure(now=NOW + timedelta(minutes=3))
+        self.assertEqual(f.calls, 1)
+
+    def test_completed_receipt_cannot_override_a_current_provider_rejection(self):
+        f = self.fixture
+        f.manager.refresh(now=NOW)
+        f.metadata['expires_at'] = (NOW - timedelta(seconds=1)).isoformat()
+        before = dict(f.metadata)
+        f.manager.metadata_health = lambda moment: (
+            f.metadata, f.health('regeneration_required', 'metadata_expired'))
+        f.manager.validator = lambda *args, **kwargs: f.health(
+            'regeneration_required', 'provider_rejected_token')
+        with self.assertRaises(RefreshRequired) as caught:
+            f.manager.ensure(now=NOW + timedelta(minutes=3))
+        self.assertEqual(caught.exception.health.reason, 'provider_rejected_token')
+        self.assertEqual(f.calls, 1)
+        self.assertEqual(f.metadata, before)
+
+    def test_unknown_refresh_remains_fenced_for_valid_and_missing_metadata(self):
+        f = self.fixture
+        f.manager.refresher = lambda _: (_ for _ in ()).throw(TimeoutError())
+        with self.assertRaises(TransientError):
+            f.manager.refresh(now=NOW)
+        for metadata in [f.metadata, None]:
+            f.metadata = metadata
+            with self.subTest(metadata=metadata is None), self.assertRaises(TransientError):
+                f.manager.ensure(now=NOW + timedelta(minutes=3))
 
     def test_unknown_grant_rejects_changed_identity(self):
         f = self.fixture

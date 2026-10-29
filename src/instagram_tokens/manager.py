@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from .errors import ConfigurationError, RefreshRequired, TokenError, TransientError
 from .models import Health, parse_time
-from .renewal import _ensured, renew
+from .renewal import _ensured, completed_lifetime, renew
 from .state import RenewalState, cached_health, invalidate_health, retain_health
 
 DEFAULT_RENEWAL_MARGIN = timedelta(days=7)
@@ -94,13 +94,17 @@ class TokenManager:
                 moment = now or datetime.now(UTC)
                 metadata, local_health = self.metadata_health(moment)
                 pending = self.state_factory().value
-                if pending.get("status") in {
-                    "response_received",
-                    "promoting",
-                    "rollback_required",
-                } and pending.get("candidate_token_binding"):
+                if pending and pending.get("status") not in {
+                    "complete", "rejected", "candidate_rejected",
+                }:
                     return self._refresh_locked(moment, repair_metadata=True)
                 if local_health is not None:
+                    if local_health.may_regenerate and local_health.reason == "metadata_expired":
+                        token = self.vault.read_secret(
+                            service=self.identity.target.service, account=self.identity.target.account
+                        )
+                        if completed_lifetime(self.identity, pending, token, now=moment) is not None:
+                            return self._refresh_locked(moment, repair_metadata=True)
                     if local_health.reason in {
                         "metadata_missing",
                         "metadata_expiry_invalid",
